@@ -1,0 +1,45 @@
+# =============================================================================
+# PCB 缺陷检测 —— YOLOv8 验证评估配置
+# -----------------------------------------------------------------------------
+# 独立运行：python scripts/evaluate_yolo.py
+# 指定权重：python scripts/evaluate_yolo.py --weights runs/pcb_yolo/train/weights/best.pt
+# 训练脚本会自动传入 best.pt，并复用本文件的验证参数、阈值与报告目录。
+# =============================================================================
+
+dataset:
+  data: datasets/pcb_yolo/data.yaml
+  split: val           # 可改为 test 等 data.yaml 中存在的划分
+
+# 待评估权重（相对仓库根目录）；训练脚本会用实际 best.pt 覆盖
+weights: runs/pcb_yolo/train/weights/best.pt
+
+eval:
+  imgsz: 640
+  batch: 8
+  conf: 0.001          # mAP 计算使用低置信度阈值
+  iou: 0.6             # NMS IoU
+  device: 0
+  workers: 4
+  max_det: 300
+  half: false          # 8.4 已弃用（仅 true 时透传），建议保持 false
+  plots: true          # 输出 PR/F1/混淆矩阵等图表
+  save_json: false
+  project: runs/pcb_yolo
+  name: eval
+  exist_ok: true
+
+thresholds:
+  enabled: true
+  map50: 0.70          # 总体 mAP@0.5 下限
+  map50_95: 0.45       # 总体 mAP@0.5:0.95 下限
+  precision: 0.60
+  recall: 0.60
+  per_class_map50: 0.50  # 每个有实例类别的 mAP@0.5 下限，0 表示不检查
+  min_classes: 6       # 验证集至少覆盖的类别数
+
+report:
+  dir: runs/pcb_yolo/eval_report
+  worst_images: 10     # 报告中列出 F1 最低的 N 张图像，便于人工复查
+
+# 指标未达阈值时是否以非 0 退出；训练脚本的 evaluation.strict 优先
+strict: true

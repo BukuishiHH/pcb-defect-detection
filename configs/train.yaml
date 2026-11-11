@@ -1,0 +1,53 @@
+# =============================================================================
+# PCB 缺陷检测 —— YOLOv8 训练配置
+# -----------------------------------------------------------------------------
+# - 所有相对路径均相对仓库根目录解析，可在任意工作目录下运行脚本；
+# - 临时修改参数无需编辑本文件，使用 --set 覆盖，例如：
+#     python scripts/train_yolo.py --set train.epochs=200 --set train.batch=16
+# - train 段中除下面列出的字段外，还可直接填写 Ultralytics 支持的训练参数
+#   （如 mosaic、hsv_h、mixup 等），脚本会校验后原样透传。
+# =============================================================================
+
+dataset:
+  # Ultralytics 数据集配置，由 scripts/convert_coco_to_yolo.py 生成
+  data: datasets/pcb_yolo/data.yaml
+
+model:
+  # 预训练权重；也可填已有 .pt 路径用于继续训练
+  weights: yolov8n.pt
+
+train:
+  epochs: 100
+  imgsz: 640
+  batch: 8
+  device: 0            # GPU 编号（"0" / "0,1"）或 "cpu"
+  workers: 4
+  optimizer: auto
+  lr0: 0.01
+  lrf: 0.01
+  momentum: 0.937
+  weight_decay: 0.0005
+  warmup_epochs: 3.0
+  patience: 30         # 连续多少个 epoch 无提升则早停
+  seed: 42
+  deterministic: true
+  amp: true
+  cache: false
+  pretrained: true
+  resume: false
+  val: true            # 每个 epoch 结束后在验证集评估
+  plots: true
+  save: true
+  save_period: -1      # -1 表示只保存 best/last
+  cos_lr: false
+  close_mosaic: 10
+  project: runs/pcb_yolo
+  name: train
+  exist_ok: false
+
+evaluation:
+  # 训练结束后自动执行验证评估，报告写入 configs/eval.yaml 的 report.dir
+  enabled: true
+  config: configs/eval.yaml
+  # true: 指标未达阈值时训练脚本返回非 0；false: 仅记录，训练仍算成功
+  strict: false

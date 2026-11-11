@@ -67,6 +67,27 @@ datasets/pcb_yolo/
 
 脚本结束时会自动校验：图像与标签一一对应、标签为 5 字段、类别索引合法、坐标在 0~1 之间、图像尺寸与 COCO 记录一致。
 
+## 测试
+
+测试使用合成的迷你 COCO 数据集（临时目录中生成 3 张图像、3 个类别与覆盖各类边界情况的标注），不依赖约 915 MB 的真实数据，因此可在任意机器上快速运行：
+
+```bash
+conda activate cv_demo
+python -m pytest            # 全部测试
+python -m pytest -v         # 显示每条用例
+```
+
+覆盖内容：
+
+- 坐标换算与裁剪、非法框过滤、标签小数位格式
+- 类别按 `category id` 排序并重映射为 0..N-1，重复/空类别校验
+- 标注读取（tar 包与解压目录两种来源）、图像索引的大小写兼容
+- 图像写入（复制 / 硬链接及回退）、输出目录的 `--overwrite` 保护
+- 单划分转换统计（越界框、`crowd`/`ignore`、未知类别、空标注图像）
+- `main()` 端到端：目录结构、标签内容、`data.yaml`、`conversion_summary.json`、`--dry-run`、缺少图像时的退出码
+- `verify_output()` 对损坏标签、缺失标签、数量不一致的检测
+- 真实数据集存在时，额外执行一次只读的 `--dry-run` 集成检查（不存在时自动跳过）
+
 ## 模型训练
 
 ```bash
@@ -83,6 +104,10 @@ pcb-defect-detection/
 ├── datasets/                       # 转换后的 YOLO 数据集（不入库）
 ├── scripts/
 │   └── convert_coco_to_yolo.py     # COCO -> YOLO 数据转换脚本
+├── tests/
+│   ├── conftest.py                 # 迷你 COCO 数据集夹具
+│   └── test_convert_coco_to_yolo.py
+├── pytest.ini
 ├── requirements.txt
 ├── .gitignore
 └── README.md

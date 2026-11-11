@@ -117,7 +117,10 @@ def load_coco_splits(anno_tar: Optional[Path], anno_dir: Optional[Path], splits:
         with tarfile.open(anno_tar, "r:*") as tar:
             for split in splits:
                 member = ANNO_MEMBER_TEMPLATE.format(split=split)
-                handle = tar.extractfile(member)
+                try:
+                    handle = tar.extractfile(member)
+                except KeyError:
+                    handle = None
                 if handle is None:
                     raise ConversionError(f"标注包中缺少 {member}")
                 result[split] = json.loads(handle.read().decode("utf-8"))

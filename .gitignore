@@ -1,0 +1,45 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# ===== 虚拟环境 =====
+.venv/
+venv/
+env/
+envs/
+
+# ===== 数据集（原始数据与转换后数据均不纳入版本管理） =====
+PKU-Market-PCB/
+datasets/
+
+# ===== 训练 / 推理产物 =====
+runs/
+weights/
+*.pt
+*.pth
+*.onnx
+*.engine
+*.torchscript
+*.mlpackage
+*.tflite
+
+# ===== 日志与缓存 =====
+logs/
+wandb/
+*.log
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# ===== 编辑器 / 系统文件 =====
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini

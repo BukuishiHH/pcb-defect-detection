@@ -1,0 +1,20 @@
+# ===== PCB 板缺陷检测系统 - Python 依赖 =====
+# 适用环境: conda env cv_demo (Python 3.11)
+# 安装: pip install -r requirements.txt
+# 如需 CUDA 版本 PyTorch，先执行:
+#   pip install torch==2.2.2 torchvision==0.17.2 --index-url https://download.pytorch.org/whl/cu121
+
+# --- 深度学习框架与检测模型 ---
+ultralytics==8.4.199
+torch==2.2.2
+torchvision==0.17.2
+
+# --- 数据处理与图像处理 ---
+numpy==1.26.4
+opencv-python==4.8.1.78
+pillow==10.2.0
+PyYAML==6.0.3
+
+# --- 训练可视化与进度显示 ---
+matplotlib==3.11.2
+tqdm==4.70.1

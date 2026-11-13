@@ -91,7 +91,8 @@ python -m pytest -v         # 显示每条用例
 - 指标提取：总体与逐类指标、混淆矩阵、numpy 数组兼容、F1 最低图像排序
 - 阈值判定（通过 / 未通过 / 关闭）、`metrics.json` / `per_class.csv` / `report.md` 输出内容
 - `evaluate()` 全流程与类别不一致、权重缺失的报错；`train()` 的训练参数透传、`best.pt` 选择、训练后评估与 `train_summary.json`
-- 两个脚本的 `--dry-run` 命令行入口与错误退出码
+- 推理层：`PredictConfig` 默认值/覆盖/非法取值、单图/目录/txt 输入解析、推理参数透传、带框图定位与 `predictions.json` 输出
+- 三个脚本的 `--dry-run` 命令行入口与错误退出码
 
 ## 模型训练
 
@@ -188,6 +189,63 @@ PR 曲线、F1 曲线、混淆矩阵等图表由 Ultralytics 保存在 `eval.pro
 
 `data.yaml` 未设置 `path`，Ultralytics 会以该文件所在目录作为数据集根目录，因此可在任意工作目录下直接引用。
 
+## 推理（单图 / 批量）
+
+推理参数集中在 `configs/predict.yaml`，脚本默认加载训练输出的 `best.pt`，支持单张图像、图像目录与图像列表 `txt`：
+
+```bash
+conda activate cv_demo
+
+# 单图推理（带框图保存到 runs/pcb_yolo/predict）
+python scripts/predict_yolo.py --source datasets/pcb_yolo/images/val/01_missing_hole_08.jpg
+
+# 批量推理（目录），只抽检前 20 张
+python scripts/predict_yolo.py --source datasets/pcb_yolo/images/val --limit 20
+
+# 指定权重（多次训练时按评估结果选择 run）
+python scripts/predict_yolo.py --weights runs/pcb_yolo/train-2/weights/best.pt --source test.jpg
+
+# 图像列表：每行一个路径，相对路径以 txt 所在目录为基准
+python scripts/predict_yolo.py --source samples.txt
+
+# 只解析并打印配置，不加载模型
+python scripts/predict_yolo.py --source test.jpg --dry-run
+```
+
+| 参数 | 说明 |
+| --- | --- |
+| `--config` | 推理配置文件，默认 `configs/predict.yaml` |
+| `--weights` | 待加载权重，覆盖配置中的 `weights`（相对当前工作目录） |
+| `--source` | 单图 / 目录 / txt 列表，覆盖配置中的 `source`（相对当前工作目录） |
+| `--conf` / `--iou` / `--imgsz` / `--device` / `--limit` / `--name` | 覆盖对应的 `predict.*` 字段 |
+| `--set KEY=VALUE` | 覆盖任意配置项（键必须已存在）；`predict` 段的额外键需为 Ultralytics 合法参数 |
+| `--dry-run` | 只解析并打印配置 |
+
+控制台按图像输出每个目标的类别、置信度与 `xyxy` 像素坐标，并给出汇总：
+
+```text
+-- 01_missing_hole_08.jpg: 3 个目标  ->  ...\runs\pcb_yolo\predict\01_missing_hole_08.jpg
+   missing_hole     conf=0.8050 xyxy=[2754.32, 706.69, 2809.61, 762.67]
+总计: 3 张图像，8 个目标
+类别统计: missing_hole=8
+```
+
+输出文件：
+
+```text
+runs/pcb_yolo/
+├── predict/                  # 带检测框的可视化图像（predict.project/predict.name）
+└── predict_report/
+    └── predictions.json      # 逐图检测结果、坐标、置信度、类别统计与带框图路径
+```
+
+说明：
+
+- 默认 `weights` 指向 `runs/pcb_yolo/train/weights/best.pt`；多次训练会生成 `train`、`train-2` …… 互不覆盖，请按 `runs/pcb_yolo/eval_report/metrics.json` 的指标挑选表现最好的 run（例如 `train-2`）的 `best.pt`；
+- `best.pt` 是验证集上表现最好的权重，推理应优先使用；`last.pt` 是最后一个 epoch 的权重，指标通常略低；
+- `classes` 可只保留部分类别（如 `[0, 2]`），`max_images` 用于快速抽检，`save=false` 时只汇总结果、不写带框图；
+- 推理不依赖 `data.yaml`，类别名称直接来自权重内置的 `names`。
+
 ## 目录结构
 
 ```text
@@ -196,16 +254,19 @@ pcb-defect-detection/
 ├── datasets/                       # 转换后的 YOLO 数据集（不入库）
 ├── configs/
 │   ├── train.yaml                  # 训练配置
-│   └── eval.yaml                   # 验证评估配置
+│   ├── eval.yaml                   # 验证评估配置
+│   └── predict.yaml                # 单图 / 批量推理配置
 ├── scripts/
 │   ├── convert_coco_to_yolo.py     # COCO -> YOLO 数据转换脚本
 │   ├── pcb_config.py               # 配置加载/校验共享层
 │   ├── train_yolo.py               # YOLOv8 训练脚本
-│   └── evaluate_yolo.py            # 验证评估与报告脚本
+│   ├── evaluate_yolo.py            # 验证评估与报告脚本
+│   └── predict_yolo.py             # 单图 / 批量推理脚本
 ├── tests/
 │   ├── conftest.py                 # 迷你 COCO 数据集夹具
 │   ├── test_convert_coco_to_yolo.py
-│   └── test_train_eval_scripts.py  # 配置、训练/评估编排、报告与 CLI 测试
+│   ├── test_train_eval_scripts.py  # 配置、训练/评估编排、报告与 CLI 测试
+│   └── test_predict_script.py      # 推理配置、输入解析与推理流程测试
 ├── pytest.ini
 ├── requirements.txt
 ├── .gitignore

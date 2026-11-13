@@ -1,0 +1,43 @@
+# =============================================================================
+# PCB 缺陷检测 —— YOLOv8 单图 / 批量推理配置
+# -----------------------------------------------------------------------------
+# - 所有相对路径均相对仓库根目录解析，可在任意工作目录下运行脚本；
+# - 推荐加载训练输出的 best.pt（验证集最优权重），例如：
+#     runs/pcb_yolo/train/weights/best.pt
+#     多次训练会生成 train / train-2 / train-3 ...，按需选择对应目录；
+# - 临时修改参数无需编辑本文件，使用 --set 覆盖，例如：
+#     python scripts/predict_yolo.py --source a.jpg --set predict.conf=0.3
+# - predict 段中除下面列出的字段外，还可直接填写 Ultralytics 支持的推理参数
+#   （如 agnostic_nms、max_det、augment 等），脚本会校验后原样透传。
+# =============================================================================
+
+# 待加载权重（相对仓库根目录），推荐使用训练输出的 best.pt
+# 多次训练会生成 train / train-2 / ... 互不覆盖，请按评估指标选择对应 run：
+#   weights: runs/pcb_yolo/train-2/weights/best.pt
+weights: runs/pcb_yolo/train/weights/best.pt
+
+# 推理输入：单张图像 / 图像目录 / 图像列表 txt，也可用 --source 覆盖
+source: null
+
+predict:
+  imgsz: 640
+  conf: 0.25           # 置信度阈值
+  iou: 0.45            # NMS IoU
+  device: 0            # GPU 编号（"0"）或 "cpu"
+  max_det: 300         # 每张图最多保留的检测框数
+  classes: null        # 只保留指定类别索引，例如 [0, 2]；null 表示全部
+  save: true           # 保存带检测框的可视化图像
+  save_txt: false      # 是否额外保存 YOLO 格式 txt
+  save_conf: false     # txt 中是否包含置信度
+  show_labels: true    # 带框图上显示类别名称
+  show_conf: true      # 带框图上显示置信度
+  line_width: null     # 框线宽度，null 表示自动
+  verbose: false       # 是否打印 Ultralytics 的逐图日志
+  max_images: 0        # 最多推理的图像数，0 表示不限制（便于快速抽检）
+  project: runs/pcb_yolo
+  name: predict
+  exist_ok: true
+
+report:
+  # 推理结果汇总（predictions.json）输出目录
+  dir: runs/pcb_yolo/predict_report

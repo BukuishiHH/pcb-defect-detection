@@ -21,6 +21,7 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TRAIN_CONFIG = REPO_ROOT / "configs" / "train.yaml"
 DEFAULT_EVAL_CONFIG = REPO_ROOT / "configs" / "eval.yaml"
+DEFAULT_PREDICT_CONFIG = REPO_ROOT / "configs" / "predict.yaml"
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
 
 
@@ -589,3 +590,175 @@ class EvalConfig:
             strict=_as_bool(raw.get("strict", True), "strict"),
             snapshot=copy.deepcopy(raw),
         )
+
+
+# ---------------------------------------------------------------------------
+# 推理配置
+# ---------------------------------------------------------------------------
+def _as_int_list(
+    value: Any,
+    context: str,
+    minimum: Optional[int] = None,
+) -> Optional[Tuple[int, ...]]:
+    """校验可选的整数列表（如 ``classes``），None 表示不过滤类别。"""
+    if value is None:
+        return None
+    if isinstance(value, (str, bytes, Mapping)) or not isinstance(value, (list, tuple)):
+        raise ConfigError(f"{context} 必须是整数列表或 null，实际为: {value!r}")
+    items: List[int] = []
+    for item in value:
+        if isinstance(item, bool) or not isinstance(item, int):
+            raise ConfigError(f"{context} 的元素必须是整数，实际为: {item!r}")
+        if minimum is not None and item < minimum:
+            raise ConfigError(f"{context} 的元素必须 >= {minimum}，实际为: {item}")
+        items.append(item)
+    return tuple(items)
+
+
+@dataclass(frozen=True)
+class PredictSettings:
+    """单图 / 批量推理参数，对应 Ultralytics ``model.predict()``。"""
+
+    weights: Optional[Path] = None
+    source: Optional[Path] = None
+    imgsz: int = 640
+    conf: float = 0.25
+    iou: float = 0.45
+    device: str = "0"
+    max_det: int = 300
+    classes: Optional[Tuple[int, ...]] = None
+    save: bool = True
+    save_txt: bool = False
+    save_conf: bool = False
+    show_labels: bool = True
+    show_conf: bool = True
+    line_width: Optional[int] = None
+    verbose: bool = False
+    max_images: int = 0
+    project: Path = REPO_ROOT / "runs" / "pcb_yolo"
+    name: str = "predict"
+    exist_ok: bool = True
+    report_dir: Path = REPO_ROOT / "runs" / "pcb_yolo" / "predict_report"
+    extra: Mapping[str, Any] = field(default_factory=dict)
+
+    def to_predict_kwargs(self) -> Dict[str, Any]:
+        kwargs: Dict[str, Any] = {
+            "imgsz": self.imgsz,
+            "conf": self.conf,
+            "iou": self.iou,
+            "device": self.device,
+            "max_det": self.max_det,
+            "save": self.save,
+            "save_txt": self.save_txt,
+            "save_conf": self.save_conf,
+            "show_labels": self.show_labels,
+            "show_conf": self.show_conf,
+            "verbose": self.verbose,
+            "project": str(self.project),
+            "name": self.name,
+            "exist_ok": self.exist_ok,
+        }
+        if self.classes is not None:
+            kwargs["classes"] = list(self.classes)
+        if self.line_width is not None:
+            kwargs["line_width"] = self.line_width
+        kwargs.update(dict(self.extra))
+        return kwargs
+
+    @classmethod
+    def from_mapping(
+        cls,
+        config: Mapping[str, Any],
+        weights_override: Optional[Path] = None,
+        source_override: Optional[Path] = None,
+    ) -> "PredictSettings":
+        predict_map = _require_mapping(config.get("predict"), "predict")
+        known = (
+            "imgsz", "conf", "iou", "device", "max_det", "classes",
+            "save", "save_txt", "save_conf", "show_labels", "show_conf",
+            "line_width", "verbose", "max_images", "project", "name", "exist_ok",
+        )
+        extra = _split_extra(predict_map, known, "predict")
+        report = _require_mapping(config.get("report", {}), "report")
+        _check_keys(report, ("dir",), "report")
+
+        if weights_override is not None:
+            weights_path = Path(weights_override).expanduser()
+            weights = (
+                weights_path.resolve()
+                if weights_path.is_absolute()
+                else (Path.cwd() / weights_path).resolve()
+            )
+        elif config.get("weights") is not None:
+            weights = resolve_path(config.get("weights"), "weights")
+        else:
+            weights = None
+
+        if source_override is not None:
+            source_path = Path(source_override).expanduser()
+            source = (
+                source_path.resolve()
+                if source_path.is_absolute()
+                else (Path.cwd() / source_path).resolve()
+            )
+        elif config.get("source") is not None:
+            source = resolve_path(config.get("source"), "source")
+        else:
+            source = None
+
+        line_width = predict_map.get("line_width")
+        return cls(
+            weights=weights,
+            source=source,
+            imgsz=_as_int(predict_map.get("imgsz", 640), "predict.imgsz", minimum=32),
+            conf=_as_float(predict_map.get("conf", 0.25), "predict.conf", 0.0, 1.0),
+            iou=_as_float(predict_map.get("iou", 0.45), "predict.iou", 0.0, 1.0),
+            device=_as_device(predict_map.get("device", "0"), "predict.device"),
+            max_det=_as_int(predict_map.get("max_det", 300), "predict.max_det", minimum=1),
+            classes=_as_int_list(predict_map.get("classes"), "predict.classes", minimum=0),
+            save=_as_bool(predict_map.get("save", True), "predict.save"),
+            save_txt=_as_bool(predict_map.get("save_txt", False), "predict.save_txt"),
+            save_conf=_as_bool(predict_map.get("save_conf", False), "predict.save_conf"),
+            show_labels=_as_bool(predict_map.get("show_labels", True), "predict.show_labels"),
+            show_conf=_as_bool(predict_map.get("show_conf", True), "predict.show_conf"),
+            line_width=None
+            if line_width is None
+            else _as_int(line_width, "predict.line_width", minimum=0),
+            verbose=_as_bool(predict_map.get("verbose", False), "predict.verbose"),
+            max_images=_as_int(predict_map.get("max_images", 0), "predict.max_images", minimum=0),
+            project=resolve_path(predict_map.get("project", "runs/pcb_yolo"), "predict.project"),
+            name=_as_str(predict_map.get("name", "predict"), "predict.name"),
+            exist_ok=_as_bool(predict_map.get("exist_ok", True), "predict.exist_ok"),
+            report_dir=resolve_path(report.get("dir", "runs/pcb_yolo/predict_report"), "report.dir"),
+            extra=extra,
+        )
+
+
+@dataclass(frozen=True)
+class PredictConfig:
+    """完整推理配置：权重、输入路径与推理参数。"""
+
+    source: Path
+    settings: PredictSettings
+    snapshot: Mapping[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def load(
+        cls,
+        path: Path = DEFAULT_PREDICT_CONFIG,
+        weights: Optional[Path] = None,
+        source: Optional[Path] = None,
+        overrides: Sequence[str] = (),
+    ) -> "PredictConfig":
+        config_path = Path(path)
+        raw = apply_overrides(load_yaml(config_path), overrides)
+        _check_keys(raw, ("weights", "source", "predict", "report"), "推理配置")
+        settings = PredictSettings.from_mapping(
+            raw, weights_override=weights, source_override=source
+        )
+        return cls(
+            source=config_path,
+            settings=settings,
+            snapshot=copy.deepcopy(raw),
+        )
+
